@@ -10,14 +10,16 @@ import (
 
 func CreateToken(user models.User,w http.ResponseWriter) string {
 	hmacSecret := []byte("test")
-	expirationTime:= time.Now().Add(30*time.Minute)
+	iatTime := time.Now().Unix()
+	expirationTime:= time.Now().Add(30*time.Minute).Unix()
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, jwt.MapClaims{
 		"sub": user.ID,
 		"role" : user.Role,
 		"name" : user.Name,
 		"groups" : user.Groups,
-		"iat" : expirationTime,
+		"iat" : iatTime,
+		"exp" : expirationTime,
 	})
 
 	tokenString, err := token.SignedString(hmacSecret)
@@ -28,11 +30,6 @@ func CreateToken(user models.User,w http.ResponseWriter) string {
 		},
 		).Warn("Failed to create signed token!")
 	}
-	http.SetCookie(w, &http.Cookie{
-		Name:    "token",
-		Value:   tokenString,
-		Expires: expirationTime,
-	})
 
 	return tokenString
 }

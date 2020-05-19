@@ -13,6 +13,10 @@ var Claims	models.Claims
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		sw := logging.NewStatusWriter(w)
+		sw.Header().Set("Content-Type", "application/json")
+		sw.Header().Set("Access-Control-Allow-Origin", "*")
+		sw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
+		sw.Header().Set("Access-Control-Allow-Headers", "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With")
 		next.ServeHTTP(sw, r)
 		logging.LogHandler(sw, r)
 	})
@@ -79,24 +83,26 @@ func loggingMiddleware(next http.Handler) http.Handler {
 
 func testAuthMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		secret := []byte("test")
-		secretProvider := auth0.NewKeyProvider(secret)
-		configuration := auth0.NewConfigurationTrustProvider(secretProvider, nil, "")
-		validator = auth0.NewValidator(configuration, nil)
-		_, err := validator.ValidateRequest(r)
+		if r.Method != "OPTIONS" {
+			secret := []byte("test")
+			secretProvider := auth0.NewKeyProvider(secret)
+			configuration := auth0.NewConfigurationTrustProvider(secretProvider, nil, "")
+			validator = auth0.NewValidator(configuration, nil)
+			_, err := validator.ValidateRequest(r)
 
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requiredAlgorithm" : "HS256",
-				"error" : err,
-			}).Warning("Token is not valid!")
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Token is not valid\nError: "))
-			w.Write([]byte(err.Error()))
-			return
+			if err != nil {
+				log.WithFields(log.Fields{
+					"requiredAlgorithm" : "HS256",
+					"error" : err,
+				}).Warning("Token is not valid!")
+				w.WriteHeader(http.StatusUnauthorized)
+				w.Write([]byte("Token is not valid\nError: "))
+				w.Write([]byte(err.Error()))
+
+				return
+			}
+			getClaims(r)
 		}
-
-		getClaims(r)
 		sw := logging.NewStatusWriter(w)
 		sw.Header().Set("Content-Type", "application/json")
 		sw.Header().Set("Access-Control-Allow-Origin", "*")

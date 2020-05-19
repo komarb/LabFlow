@@ -323,7 +323,12 @@ func getSubjects(w http.ResponseWriter, r *http.Request) {
 	subjects := make([]models.Subject,0)
 	var filter bson.M
 
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
+
 	objID, err := primitive.ObjectIDFromHex(Claims.Sub)
 	switch {
 	case isTeacher():
@@ -489,26 +494,21 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(report)
 }
 
-func getStudentReports(w http.ResponseWriter, r *http.Request) {
+func getReports(w http.ResponseWriter, r *http.Request) {
 	var filter bson.M
 	reports := make([]models.Report, 0)
 
 	w.Header().Set("Content-Type", "application/json")
 	data := mux.Vars(r)
 	objStudentID, _ := primitive.ObjectIDFromHex(data["studentID"])
-	objSubjectID, _ := primitive.ObjectIDFromHex(data["subjectID"])
-	if !isTeacher() {
-		w.WriteHeader(403)
-		return
-	}
-	filter = bson.M{"reporterId" : objStudentID, "subjectId" : objSubjectID}
+	filter = bson.M{"reporterId" : objStudentID}
 
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
 	cur, err := reportsCollection.Find(ctx, filter)
 	if err != nil {
 		log.WithFields(log.Fields{
 			"function" : "mongo.Find",
-			"handler" : "getStudentReports",
+			"handler" : "getReports",
 			"error"	:	err,
 		},
 		).Warn("DB interaction resulted in error, shutting down...")
@@ -522,7 +522,7 @@ func getStudentReports(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		log.WithFields(log.Fields{
 			"function" : "mongo.All",
-			"handler" : "getStudentReports",
+			"handler" : "getReports",
 			"error"	:	err,
 		},
 		).Warn("DB interaction resulted in error, shutting down...")
@@ -533,26 +533,50 @@ func getStudentReports(w http.ResponseWriter, r *http.Request) {
 }
 
 func getTaskReports(w http.ResponseWriter, r *http.Request) {
-	var filter bson.M
+	var pipeline []interface{}
 	reports := make([]models.Report, 0)
 
 	w.Header().Set("Content-Type", "application/json")
+
 	data := mux.Vars(r)
 	log.Info(Claims.Sub)
 	objStudentID, _ := primitive.ObjectIDFromHex(Claims.Sub)
 	objSubjectID, _ := primitive.ObjectIDFromHex(data["subjectID"])
 	objTaskID, _ := primitive.ObjectIDFromHex(data["taskID"])
 	if isTeacher() {
-		filter = bson.M{"subjectId" : objSubjectID, "taskId" : objTaskID}
+		pipeline = []interface{}{
+			bson.M{"$lookup" : bson.M{
+				"from": "users",
+				"localField": "reporterId",
+				"foreignField": "_id",
+				"as": "reporter",
+			}},
+			bson.M{"$match":bson.M{
+				"subjectId" : objSubjectID,
+				"taskId" : objTaskID,
+			}},
+		}
 	} else if isUser() {
-		filter = bson.M{"reporterId" : objStudentID, "subjectId" : objSubjectID, "taskId" : objTaskID}
+		pipeline = []interface{}{
+			bson.M{"$lookup" : bson.M{
+				"from": "users",
+				"localField": "reporterId",
+				"foreignField": "_id",
+				"as": "reporter",
+			}},
+			bson.M{"$match":bson.M{
+				"subjectId" : objSubjectID,
+				"taskId" : objTaskID,
+				"reporterId" : objStudentID,
+			}},
+		}
 	}
 
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	cur, err := reportsCollection.Find(ctx, filter)
+	cur, err := reportsCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"function" : "mongo.Find",
+			"function" : "mongo.Aggregate",
 			"handler" : "getTaskReports",
 			"error"	:	err,
 		},
@@ -646,27 +670,37 @@ func updateReport(w http.ResponseWriter, r *http.Request) {
 	}
 }
 func auth(w http.ResponseWriter, r *http.Request) {
-	var loggingUser models.User
+	var authResponse models.AuthResponse
+	var user models.User
+	var loggingUser models.UserCredentials
+	if r.Method == "OPTIONS" {
+		w.WriteHeader(http.StatusOK)
+		return
+	}
 	w.Header().Set("Content-Type", "application/json")
-	formLogin := r.FormValue("login")
-	formPassword := r.FormValue("password")
 
-	filter := bson.M{"login" : formLogin}
+	json.NewDecoder(r.Body).Decode(&loggingUser)
+	filter := bson.M{"username" : loggingUser.Username}
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	err := usersCollection.FindOne(ctx, filter).Decode(&loggingUser)
+	err := usersCollection.FindOne(ctx, filter).Decode(&user)
 	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
 		w.Write([]byte("No such user"))
 		return
 	}
 
-	err = bcrypt.CompareHashAndPassword([]byte(loggingUser.Password), []byte(formPassword))
+	err = bcrypt.CompareHashAndPassword([]byte(user.Password), []byte(loggingUser.Password))
 	if err != nil {
-		w.Write([]byte("Password is incorrect"))
+		log.Info(err)
 		w.WriteHeader(http.StatusUnauthorized)
+		w.Write([]byte("Password is incorrect"))
 		return
 	}
-	tokenString := utils.CreateToken(loggingUser,w)
-
-
-	w.Write([]byte(tokenString))
+	tokenString := utils.CreateToken(user,w)
+	authResponse.AccessToken = tokenString
+	authResponse.ID = user.ID.Hex()
+	authResponse.Username = user.Username
+	authResponse.Groups = user.Groups
+	authResponse.Role = user.Role
+	json.NewEncoder(w).Encode(authResponse)
 }
