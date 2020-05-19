@@ -1,0 +1,16 @@
+{
+  "DbOptions": {
+    "host": "localhost",
+    "dbPort": "27017",
+    "dbName" : "LabFlow",
+    "subjectsCollectionName" : "subjects",
+    "usersCollectionName" : "users",
+    "tasksCollectionName" : "tasks",
+    "reportsCollectionName" : "reports",
+    "groupsCollectionName" : "groups"
+  },
+  "AppOptions": {
+    "appPort": "8080",
+    "testMode": true
+  }
+}

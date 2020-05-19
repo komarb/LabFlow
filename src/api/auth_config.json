@@ -1,0 +1,8 @@
+{
+  "AuthOptions": {
+    "keyUrl": "https://files.rtuitlab.ru/test/jwks.json",
+    "audience": "itlab",
+    "issuer": "https://dev.identity.rtuitlab.ru",
+    "scope": "itlab.reports"
+  }
+}
