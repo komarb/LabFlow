@@ -12,76 +12,22 @@ var Claims	models.Claims
 
 func loggingMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+
 		sw := logging.NewStatusWriter(w)
 		sw.Header().Set("Content-Type", "application/json")
 		sw.Header().Set("Access-Control-Allow-Origin", "*")
 		sw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
 		sw.Header().Set("Access-Control-Allow-Headers", "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With")
+		if r.Method == "OPTIONS" {
+			sw.WriteHeader(200)
+			return
+		}
 		next.ServeHTTP(sw, r)
 		logging.LogHandler(sw, r)
 	})
 }
-/*func authMiddleware(next http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		client := auth0.NewJWKClient(auth0.JWKClientOptions{URI: cfg.Auth.KeyURL}, nil)
-		audience := cfg.Auth.Audience
-		configuration := auth0.NewConfiguration(client, []string{audience}, cfg.Auth.Issuer, jose.RS256)
-		validator = auth0.NewValidator(configuration, nil)
 
-		_, err := validator.ValidateRequest(r)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requiredAlgorithm" : "RS256",
-				"error" : err,
-			}).Warning("Token is not valid!")
-
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Token is not valid!\nError: "))
-			w.Write([]byte(err.Error()))
-			return
-		}
-
-		Claims.ITLab = nil
-		err = getClaims(r)
-		if err != nil {
-			log.WithFields(log.Fields{
-				"requiredClaims" : "iss, aud, sub, itlab",
-				"error" : err,
-			}).Warning("Invalid claims!")
-
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Invalid claims!"))
-			w.Write([]byte(err.Error()))
-			return
-		}
-
-		if !checkScope(cfg.Auth.Scope) {
-			log.WithFields(log.Fields{
-				"requiredScope" : cfg.Auth.Scope,
-				"error" : err,
-			}).Warning("Invalid scope!")
-
-			w.WriteHeader(http.StatusUnauthorized)
-			w.Write([]byte("Invalid scope"))
-			return
-		}
-
-		if !isUser() {
-			log.WithFields(log.Fields{
-				"Claims.ITLab" : Claims.ITLab,
-				"function" : "authMiddleware",
-			}).Warning("Wrong itlab claim!")
-			w.WriteHeader(403)
-			w.Write([]byte("Wrong itlab claim!"))
-			return
-		}
-		sw := logging.NewStatusWriter(w)
-		next.ServeHTTP(sw, r)
-		logging.LogHandler(sw, r)
-	})
-}*/
-
-func testAuthMiddleware(next http.Handler) http.Handler {
+func authMiddleware(next http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if r.Method != "OPTIONS" {
 			secret := []byte("test")
@@ -108,6 +54,10 @@ func testAuthMiddleware(next http.Handler) http.Handler {
 		sw.Header().Set("Access-Control-Allow-Origin", "*")
 		sw.Header().Set("Access-Control-Allow-Methods", "GET, POST, PATCH, PUT, DELETE, OPTIONS")
 		sw.Header().Set("Access-Control-Allow-Headers", "Content-Type, Access-Control-Allow-Headers, Authorization, X-Requested-With")
+		if r.Method == "OPTIONS" {
+			sw.WriteHeader(200)
+			return
+		}
 		next.ServeHTTP(sw, r)
 		logging.LogHandler(sw, r)
 	})

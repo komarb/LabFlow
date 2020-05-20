@@ -19,6 +19,7 @@ type AuthResponse struct {
 	ID				string		`json:"id"`
 	AccessToken		string		`json:"accessToken"`
 	Username		string		`json:"username"`
+	Name 			string		`json:"name"`
 	Role			string		`json:"role"`
 	Groups			[]string	`json:"groups"`
 }

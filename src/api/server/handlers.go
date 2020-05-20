@@ -18,7 +18,7 @@ import (
 	reports := make([]models.Report, 0)
 	var filter bson.M
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	switch {
 	case isAdmin():
@@ -56,7 +56,7 @@ func getAllReportsSorted(w http.ResponseWriter, r *http.Request) {
 	var filter bson.M
 	reports := make([]models.Report, 0)
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	switch {
 	case isAdmin():
@@ -104,7 +104,7 @@ func getReport(w http.ResponseWriter, r *http.Request) {
 	var filter bson.M
 	var report models.Report
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	json.NewDecoder(r.Body).Decode(&report)
 	data := mux.Vars(r)
@@ -132,7 +132,7 @@ func getArchivedReports(w http.ResponseWriter, r *http.Request) {
 	reports := make([]models.Report, 0)
 	var filter bson.M
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	switch {
 	case isAdmin():
@@ -169,7 +169,7 @@ func getEmployeeReports(w http.ResponseWriter, r *http.Request) {
 	var filter bson.D
 	reports := make([]models.Report, 0)
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	data := mux.Vars(r)
 	employee := data["employee"]
@@ -226,7 +226,7 @@ func getEmployeeReports(w http.ResponseWriter, r *http.Request) {
 func createReport(w http.ResponseWriter, r *http.Request) {
 	var report models.Report
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	json.NewDecoder(r.Body).Decode(&report)
 	report.ReportSender = Claims.Sub
@@ -250,7 +250,7 @@ func updateReport(w http.ResponseWriter, r *http.Request) {
 	var report models.Report
 	var updatedReport models.Report
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	json.NewDecoder(r.Body).Decode(&report)
 	data := mux.Vars(r)
@@ -287,9 +287,6 @@ func updateReport(w http.ResponseWriter, r *http.Request) {
 
 func deleteReport(w http.ResponseWriter, r *http.Request) {
 	var report models.Report
-
-	w.Header().Set("Content-Type", "application/json")
-
 	data := mux.Vars(r)
 	objID, err := primitive.ObjectIDFromHex(string(data["id"]))
 	if err != nil {
@@ -322,12 +319,8 @@ func deleteReport(w http.ResponseWriter, r *http.Request) {
 func getSubjects(w http.ResponseWriter, r *http.Request) {
 	subjects := make([]models.Subject,0)
 	var filter bson.M
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
+	
+	
 
 	objID, err := primitive.ObjectIDFromHex(Claims.Sub)
 	switch {
@@ -356,7 +349,7 @@ func getSubject(w http.ResponseWriter, r *http.Request) {
 	var filter bson.M
 	var subject models.Subject
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	data := mux.Vars(r)
 	objID, err := primitive.ObjectIDFromHex(data["id"])
@@ -390,8 +383,10 @@ func getSubject(w http.ResponseWriter, r *http.Request) {
 func createTask(w http.ResponseWriter, r *http.Request) {
 	var task models.Task
 
-	w.Header().Set("Content-Type", "application/json")
-
+	if !isTeacher() {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
 	data := mux.Vars(r)
 	json.NewDecoder(r.Body).Decode(&task)
 	task.CreatedAt = time.Now().Format("2006-01-02T15:04:05")
@@ -413,11 +408,34 @@ func createTask(w http.ResponseWriter, r *http.Request) {
 	json.NewEncoder(w).Encode(task)
 }
 
+func deleteTask(w http.ResponseWriter, r *http.Request) {
+	if !isTeacher() {
+		w.WriteHeader(http.StatusUnauthorized)
+		return
+	}
+	data := mux.Vars(r)
+	objTaskID, _ := primitive.ObjectIDFromHex(data["taskID"])
+	filter := bson.M{"_id": objTaskID}
+	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
+	_, err := tasksCollection.DeleteOne(ctx, filter)
+	if err != nil {
+		log.WithFields(log.Fields{
+			"function" : "mongo.DeleteOne",
+			"handler" : "deleteTask",
+			"error"	:	err,
+		},
+		).Warn("DB interaction resulted in error, shutting down...")
+		w.WriteHeader(http.StatusInternalServerError)
+		return
+	}
+	w.WriteHeader(http.StatusNoContent)
+}
+
 func getSubjectTasks(w http.ResponseWriter, r *http.Request) {
 	tasks := make([]models.Task, 0)
 	var filter bson.M
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	data := mux.Vars(r)
 	objSubjectID, _ := primitive.ObjectIDFromHex(data["subjectID"])
@@ -443,13 +461,8 @@ func getSubjectTasks(w http.ResponseWriter, r *http.Request) {
 func createReport(w http.ResponseWriter, r *http.Request) {
 	var report models.Report
 	var task models.Task
-
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-
-	w.Header().Set("Content-Type", "application/json")
+	
+	
 
 	data := mux.Vars(r)
 	json.NewDecoder(r.Body).Decode(&report)
@@ -495,19 +508,28 @@ func createReport(w http.ResponseWriter, r *http.Request) {
 }
 
 func getReports(w http.ResponseWriter, r *http.Request) {
-	var filter bson.M
 	reports := make([]models.Report, 0)
 
-	w.Header().Set("Content-Type", "application/json")
+	
 	data := mux.Vars(r)
 	objStudentID, _ := primitive.ObjectIDFromHex(data["studentID"])
-	filter = bson.M{"reporterId" : objStudentID}
+	pipeline := []interface{}{
+		bson.M{"$lookup" : bson.M{
+			"from": "users",
+			"localField": "reporterId",
+			"foreignField": "_id",
+			"as": "reporter",
+		}},
+		bson.M{"$match":bson.M{
+			"reporterId" : objStudentID,
+		}},
+	}
 
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	cur, err := reportsCollection.Find(ctx, filter)
+	cur, err := reportsCollection.Aggregate(ctx, pipeline)
 	if err != nil {
 		log.WithFields(log.Fields{
-			"function" : "mongo.Find",
+			"function" : "mongo.Aggregate",
 			"handler" : "getReports",
 			"error"	:	err,
 		},
@@ -536,7 +558,7 @@ func getTaskReports(w http.ResponseWriter, r *http.Request) {
 	var pipeline []interface{}
 	reports := make([]models.Report, 0)
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	data := mux.Vars(r)
 	log.Info(Claims.Sub)
@@ -605,7 +627,7 @@ func getSubjectGroups(w http.ResponseWriter, r *http.Request) {
 	groups := make([]models.Group, 0)
 	var filter bson.M
 
-	w.Header().Set("Content-Type", "application/json")
+	
 
 	data := mux.Vars(r)
 	objSubjectID, _ := primitive.ObjectIDFromHex(data["subjectID"])
@@ -629,12 +651,8 @@ func getSubjectGroups(w http.ResponseWriter, r *http.Request) {
 }
 
 func updateReport(w http.ResponseWriter, r *http.Request) {
-	var report models.Report
 	var updatedReport models.Report
 
-	w.Header().Set("Content-Type", "application/json")
-
-	json.NewDecoder(r.Body).Decode(&report)
 	data := mux.Vars(r)
 	objID, err := primitive.ObjectIDFromHex(data["reportID"])
 	if err != nil {
@@ -648,12 +666,9 @@ func updateReport(w http.ResponseWriter, r *http.Request) {
 		http.NotFound(w, r)
 		return
 	}
-	objSubID, _ := primitive.ObjectIDFromHex(Claims.Sub)
-	if updatedReport.ReporterID == objSubID || isTeacher() {
-		updatedReport.Text = report.Text
-		updatedReport.TeachersNote = report.TeachersNote
-		updatedReport.State = report.State
-		if report.Text == "" {
+	if isTeacher() {
+		json.NewDecoder(r.Body).Decode(&updatedReport)
+		if updatedReport.Text == "" {
 			updatedReport.Archived = true
 		} else {
 			updatedReport.Archived = false
@@ -673,12 +688,9 @@ func auth(w http.ResponseWriter, r *http.Request) {
 	var authResponse models.AuthResponse
 	var user models.User
 	var loggingUser models.UserCredentials
-	if r.Method == "OPTIONS" {
-		w.WriteHeader(http.StatusOK)
-		return
-	}
-	w.Header().Set("Content-Type", "application/json")
 
+	hash,_ := bcrypt.GenerateFromPassword([]byte("cheese"), bcrypt.MinCost)
+	log.Info(string(hash))
 	json.NewDecoder(r.Body).Decode(&loggingUser)
 	filter := bson.M{"username" : loggingUser.Username}
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
@@ -700,6 +712,7 @@ func auth(w http.ResponseWriter, r *http.Request) {
 	authResponse.AccessToken = tokenString
 	authResponse.ID = user.ID.Hex()
 	authResponse.Username = user.Username
+	authResponse.Name = user.Name
 	authResponse.Groups = user.Groups
 	authResponse.Role = user.Role
 	json.NewEncoder(w).Encode(authResponse)

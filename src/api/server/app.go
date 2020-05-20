@@ -82,16 +82,18 @@ func (a *App) setRouters() {
 	public.HandleFunc("/signin", auth).Methods("POST", "OPTIONS")
 
 	private := a.Router.PathPrefix("/api").Subrouter()
-	private.Use(testAuthMiddleware)
+	private.Use(authMiddleware)
 	private.HandleFunc("/subjects", getSubjects).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{id}", getSubject).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{subjectID}", createTask).Methods("POST", "OPTIONS")
+
 	private.HandleFunc("/subjects/{subjectID}/tasks", getSubjectTasks).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{subjectID}/groups", getSubjectGroups).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{subjectID}/tasks/{taskID}/reports", getTaskReports).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{subjectID}/tasks/{taskID}", createReport).Methods("POST", "OPTIONS")
 	private.HandleFunc("/reports/{studentID}", getReports).Methods("GET", "OPTIONS")
 	private.HandleFunc("/reports/{reportID}", updateReport).Methods("PUT", "OPTIONS")
+	private.HandleFunc("/tasks/{taskID}", deleteTask).Methods("DELETE", "OPTIONS")
 
 	//a.Router.Use(testAuthMiddleware)
 
