@@ -86,7 +86,6 @@ func (a *App) setRouters() {
 	private.HandleFunc("/subjects", getSubjects).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{id}", getSubject).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{subjectID}", createTask).Methods("POST", "OPTIONS")
-
 	private.HandleFunc("/subjects/{subjectID}/tasks", getSubjectTasks).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{subjectID}/groups", getSubjectGroups).Methods("GET", "OPTIONS")
 	private.HandleFunc("/subjects/{subjectID}/tasks/{taskID}/reports", getTaskReports).Methods("GET", "OPTIONS")

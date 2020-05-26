@@ -9,6 +9,7 @@ import (
 	log "github.com/sirupsen/logrus"
 	"go.mongodb.org/mongo-driver/bson"
 	"go.mongodb.org/mongo-driver/bson/primitive"
+	"go.mongodb.org/mongo-driver/mongo/options"
 	"golang.org/x/crypto/bcrypt"
 	"net/http"
 	"time"
@@ -319,8 +320,6 @@ func deleteReport(w http.ResponseWriter, r *http.Request) {
 func getSubjects(w http.ResponseWriter, r *http.Request) {
 	subjects := make([]models.Subject,0)
 	var filter bson.M
-	
-	
 
 	objID, err := primitive.ObjectIDFromHex(Claims.Sub)
 	switch {
@@ -329,8 +328,10 @@ func getSubjects(w http.ResponseWriter, r *http.Request) {
 	case isUser():
 		filter = bson.M{"groups" : bson.M{"$in" : Claims.Groups}}
 	}
+	findOptions := options.Find()
+	findOptions.SetSort(bson.M{"name": 1})
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
-	cur, err := subjectsCollection.Find(ctx, filter)
+	cur, err := subjectsCollection.Find(ctx, filter, findOptions)
 	ctx, _ = context.WithTimeout(context.Background(), 10*time.Second)
 	err = cur.All(ctx, &subjects)
 	if err != nil {
@@ -523,6 +524,9 @@ func getReports(w http.ResponseWriter, r *http.Request) {
 		bson.M{"$match":bson.M{
 			"reporterId" : objStudentID,
 		}},
+		bson.M{"$sort":bson.M{
+			"date" : -1,
+		}},
 	}
 
 	ctx, _ := context.WithTimeout(context.Background(), 10*time.Second)
@@ -558,8 +562,6 @@ func getTaskReports(w http.ResponseWriter, r *http.Request) {
 	var pipeline []interface{}
 	reports := make([]models.Report, 0)
 
-	
-
 	data := mux.Vars(r)
 	log.Info(Claims.Sub)
 	objStudentID, _ := primitive.ObjectIDFromHex(Claims.Sub)
@@ -577,6 +579,9 @@ func getTaskReports(w http.ResponseWriter, r *http.Request) {
 				"subjectId" : objSubjectID,
 				"taskId" : objTaskID,
 			}},
+			bson.M{"$sort":bson.M{
+				"date" : -1,
+			}},
 		}
 	} else if isUser() {
 		pipeline = []interface{}{
@@ -590,6 +595,9 @@ func getTaskReports(w http.ResponseWriter, r *http.Request) {
 				"subjectId" : objSubjectID,
 				"taskId" : objTaskID,
 				"reporterId" : objStudentID,
+			}},
+			bson.M{"$sort":bson.M{
+				"date" : -1,
 			}},
 		}
 	}
